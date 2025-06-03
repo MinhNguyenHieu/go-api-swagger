@@ -57,7 +57,6 @@ func SetupAPIRoutes(
 	// Admin routes (require JWT authentication and 'admin' role)
 	adminRouter := apiV1Router.PathPrefix("/admin").Subrouter()
 	adminRouter.Use(middleware.AuthMiddleware(jwtSecret, appLogger))
-	// Truyền cả userStore và roleStore vào AuthRoleMiddleware
 	adminRouter.Use(middleware.AuthRoleMiddleware("admin", userStore, roleStore, appLogger))
 
 	adminRouter.HandleFunc("/users/{id}/role", authHandler.UpdateUserRole).Methods("PUT")
