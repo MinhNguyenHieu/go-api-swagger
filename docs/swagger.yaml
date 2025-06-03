@@ -1,0 +1,490 @@
+basePath: /api/v1
+definitions:
+  handler.LoginResponse:
+    properties:
+      role:
+        type: string
+      token:
+        type: string
+    type: object
+  model.Item:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  request.CreateItemRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  request.LoginUserRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  request.RegisterUserRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  request.UpdateItemRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  request.UpdateUserRoleRequest:
+    properties:
+      role:
+        type: string
+    type: object
+  service.PaginatedItems:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/model.Item'
+        type: array
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      totalCount:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: This is a sample Go API application with JWT Authentication, SQLC,
+    and PostgreSQL.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Go API Application
+  version: "1.0"
+paths:
+  /admin/users/{id}/role:
+    put:
+      consumes:
+      - application/json
+      description: Allows an administrator to change a user's role. Requires 'admin'
+        role.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: New role details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.UpdateUserRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'message: User role updated successfully!'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: 'message: Invalid request data / Invalid User ID'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 'message: Authentication token required / Invalid token'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: 'message: Forbidden (requires admin role)'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: 'message: User not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'message: Internal server error'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Update user role by ID
+      tags:
+      - admin
+  /items:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a paginated list of sample items, requires JWT authentication.
+      parameters:
+      - description: Page number (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Number of items per page (default 10)
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Paginated list of items
+          schema:
+            $ref: '#/definitions/service.PaginatedItems'
+        "400":
+          description: 'message: Invalid pagination parameters'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 'message: Authentication token required / Invalid token'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'message: Internal server error'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get list of items
+      tags:
+      - items
+    post:
+      consumes:
+      - application/json
+      description: Creates a new item with a name and description. Requires JWT authentication.
+      parameters:
+      - description: Item creation details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.CreateItemRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created item
+          schema:
+            $ref: '#/definitions/model.Item'
+        "400":
+          description: 'message: Invalid request data'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 'message: Authentication token required / Invalid token'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'message: Internal server error'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create a new item
+      tags:
+      - items
+  /items/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes an item by its ID. Requires JWT authentication.
+      parameters:
+      - description: Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: 'message: Invalid item ID'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 'message: Authentication token required / Invalid token'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: 'message: Item not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'message: Internal server error'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Delete an item
+      tags:
+      - items
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a single item by its ID. Requires JWT authentication.
+      parameters:
+      - description: Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Found item
+          schema:
+            $ref: '#/definitions/model.Item'
+        "400":
+          description: 'message: Invalid item ID'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 'message: Authentication token required / Invalid token'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: 'message: Item not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'message: Internal server error'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get an item by ID
+      tags:
+      - items
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing item's name and description by its ID. Requires
+        JWT authentication.
+      parameters:
+      - description: Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Item update details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.UpdateItemRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated item
+          schema:
+            $ref: '#/definitions/model.Item'
+        "400":
+          description: 'message: Invalid request data / Invalid item ID'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 'message: Authentication token required / Invalid token'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: 'message: Item not found'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'message: Internal server error'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Update an item
+      tags:
+      - items
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates user with username and password, then returns a JWT
+        token and user role.
+      parameters:
+      - description: User login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.LoginUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'token: JWT token, role: User''s role'
+          schema:
+            $ref: '#/definitions/handler.LoginResponse'
+        "400":
+          description: 'message: Invalid request data'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 'message: Incorrect username or password'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'message: Internal server error'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Log in user and get JWT token
+      tags:
+      - authentication
+  /protected:
+    get:
+      consumes:
+      - application/json
+      description: This endpoint requires JWT authentication.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'message: You have successfully accessed the protected endpoint!'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 'message: Authentication token required / Invalid token'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Access protected endpoint
+      tags:
+      - protected
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user account with username, password, and email.
+        Defaults to 'user' role.
+      parameters:
+      - description: User registration details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.RegisterUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 'message: Registration successful!'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: 'message: Invalid request data'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 'message: Could not register user. Username or email might
+            already exist.'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register new user
+      tags:
+      - authentication
+schemes:
+- http
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
