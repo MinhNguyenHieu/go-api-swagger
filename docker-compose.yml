@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: mydatabase
-      POSTGRES_HOST: db 
+      POSTGRES_HOST: db
       POSTGRES_PORT: 5432
       JWT_SECRET: secret_jwt_key
 
@@ -37,7 +37,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    restart: on-failure 
+      elasticsearch:
+        condition: service_healthy
+    restart: on-failure
     networks:
       - my-network
 
@@ -55,25 +57,33 @@ services:
       test: ["CMD-SHELL", "pg_isready -U user -d mydatabase"]
       interval: 5s
       timeout: 5s
-      retries: 10 
-      start_period: 20s 
+      retries: 5
     networks:
-      - my-network 
+      - my-network
 
-  # redis:
-  #   image: redis:6-alpine
-  #   ports:
-  #     - "6379:6379"
-  #   networks:
-  #     - my-network
-  #   volumes:
-  #     - redis-data:/data
+  elasticsearch:
+    image: elasticsearch:8.10.2
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - my-network
 
 volumes:
   db-data:
-  # redis-data:
+  esdata:
 
 networks:
   my-network:
     driver: bridge
-
