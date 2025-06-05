@@ -58,7 +58,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.AuthService.RegisterUser(r.Context(), req.Username, req.Password, req.Email, "user")
+	err := h.AuthService.RegisterUser(r.Context(), req.Username, req.Password, req.Email, "admin")
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key value") {
 			utility.InternalServerError(w, r, fmt.Errorf("Username or email already exists"), h.Logger)
