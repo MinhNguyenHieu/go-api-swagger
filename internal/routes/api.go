@@ -14,62 +14,57 @@ import (
 	"external-backend-go/internal/utility"
 )
 
-// SetupAPIRoutes configures all API endpoints for the application.
-func SetupAPIRoutes(
-	router *mux.Router,
-	authHandler *handler.AuthHandler,
-	itemHandler *handler.ItemHandler,
-	jwtSecret string,
-	userStore store.UserStore,
-	rateLimiter *middleware.RateLimiter,
-	basicAuthUser string,
-	basicAuthPass string,
-	appLogger *logger.Logger,
-	roleStore store.RoleStore,
-) {
-	// Apply LoggerMiddleware to all requests
-	router.Use(middleware.LoggerMiddleware)
+type AppDependencies struct {
+	Router        *mux.Router
+	AuthHandler   *handler.AuthHandler
+	ItemHandler   *handler.ItemHandler
+	JWTSecret     string
+	UserStore     store.UserStore
+	RoleStore     store.RoleStore
+	RateLimiter   *middleware.RateLimiter
+	BasicAuthUser string
+	BasicAuthPass string
+	AppLogger     *logger.Logger
+	SearchStore   store.SearchStore
+}
 
-	apiV1Router := router.PathPrefix("/api/v1").Subrouter()
+func SetupAPIRoutes(deps AppDependencies) {
+	corsMiddleware := middleware.NewCORS()
+	deps.Router.Use(corsMiddleware.Handler)
 
-	// Apply RateLimiterMiddleware to all API v1 routes
-	apiV1Router.Use(middleware.RateLimiterMiddleware(rateLimiter, func(w http.ResponseWriter, r *http.Request, retryAfter string) {
-		utility.RateLimitExceededResponse(w, r, retryAfter, appLogger)
+	deps.Router.Use(middleware.LoggerMiddleware)
+
+	apiV1Router := deps.Router.PathPrefix("/api/v1").Subrouter()
+
+	apiV1Router.Use(middleware.RateLimiterMiddleware(deps.RateLimiter, func(w http.ResponseWriter, r *http.Request, retryAfter string) {
+		utility.RateLimitExceededResponse(w, r, retryAfter, deps.AppLogger)
 	}))
 
-	// Public routes (no authentication needed)
-	apiV1Router.HandleFunc("/register", authHandler.RegisterUser).Methods("POST")
-	apiV1Router.HandleFunc("/login", authHandler.LoginUser).Methods("POST")
+	setupPublicRoutes(
+		apiV1Router,
+		deps.AuthHandler,
+		deps.BasicAuthUser,
+		deps.BasicAuthPass,
+		deps.AppLogger,
+	)
 
-	// Protected routes (require JWT authentication)
-	protectedRouter := apiV1Router.PathPrefix("/").Subrouter()
-	protectedRouter.Use(middleware.AuthMiddleware(jwtSecret, appLogger))
+	setupProtectedRoutes(
+		apiV1Router,
+		deps.AuthHandler,
+		deps.ItemHandler,
+		deps.JWTSecret,
+		deps.AppLogger,
+	)
 
-	protectedRouter.HandleFunc("/protected", authHandler.ProtectedEndpoint).Methods("GET")
+	setupAdminRoutes(
+		apiV1Router,
+		deps.AuthHandler,
+		deps.ItemHandler,
+		deps.JWTSecret,
+		deps.UserStore,
+		deps.RoleStore,
+		deps.AppLogger,
+	)
 
-	// Item CRUD operations (protected)
-	protectedRouter.HandleFunc("/items", itemHandler.CreateItem).Methods("POST")
-	protectedRouter.HandleFunc("/items/{id}", itemHandler.GetItem).Methods("GET")
-	protectedRouter.HandleFunc("/items/{id}", itemHandler.UpdateItem).Methods("PUT")
-	protectedRouter.HandleFunc("/items/{id}", itemHandler.DeleteItem).Methods("DELETE")
-	protectedRouter.HandleFunc("/items", itemHandler.GetItems).Methods("GET")
-
-	// Admin routes (require JWT authentication and 'admin' role)
-	adminRouter := apiV1Router.PathPrefix("/admin").Subrouter()
-	adminRouter.Use(middleware.AuthMiddleware(jwtSecret, appLogger))
-	adminRouter.Use(middleware.AuthRoleMiddleware("admin", userStore, roleStore, appLogger))
-
-	adminRouter.HandleFunc("/users/{id}/role", authHandler.UpdateUserRole).Methods("PUT")
-
-	// Basic Auth example route
-	basicAuthRouter := apiV1Router.PathPrefix("/basic-auth").Subrouter()
-	basicAuthRouter.Use(middleware.BasicAuthMiddleware(basicAuthUser, basicAuthPass, func(w http.ResponseWriter, r *http.Request, err error) {
-		utility.UnauthorizedBasicErrorResponse(w, r, err, appLogger)
-	}))
-	basicAuthRouter.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		utility.JSONResponse(w, http.StatusOK, map[string]string{"status": "Basic Auth Health OK"})
-	}).Methods("GET")
-
-	// Swagger UI endpoint
-	router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
+	deps.Router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
 }

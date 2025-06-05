@@ -1,75 +1,61 @@
 package request
 
 import (
-	"errors"
+	"regexp"
+
+	"github.com/go-playground/validator/v10"
 )
 
-type RegisterUserRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Email    string `json:"email"`
+func isValidEmail(email string) bool {
+	emailRegex := regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}$`)
+	return emailRegex.MatchString(email)
 }
 
-func (r *RegisterUserRequest) Validate() error {
-	if r.Username == "" {
-		return errors.New("username cannot be empty")
-	}
-	if len(r.Username) < 3 {
-		return errors.New("username must be at least 3 characters long")
-	}
-	if r.Password == "" {
-		return errors.New("password cannot be empty")
-	}
-	if len(r.Password) < 6 {
-		return errors.New("password must be at least 6 characters long")
-	}
-	if r.Email == "" {
-		return errors.New("email cannot be empty")
-	}
-	if !isValidEmail(r.Email) {
-		return errors.New("invalid email format")
+type RegisterUserRequest struct {
+	Username string `json:"username" validate:"required,min=3,max=255"`
+	Password string `json:"password" validate:"required,min=6,max=255"`
+	Email    string `json:"email" validate:"required,email"`
+}
+
+func (r *RegisterUserRequest) Validate(v *validator.Validate) error {
+	if err := v.Struct(r); err != nil {
+		return err
 	}
 	return nil
 }
 
 type LoginUserRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
 }
 
-func (r *LoginUserRequest) Validate() error {
-	if r.Username == "" {
-		return errors.New("username cannot be empty")
-	}
-	if r.Password == "" {
-		return errors.New("password cannot be empty")
+func (r *LoginUserRequest) Validate(v *validator.Validate) error {
+	if err := v.Struct(r); err != nil {
+		return err
 	}
 	return nil
 }
 
 type UpdateUserRoleRequest struct {
-	RoleName string `json:"role"`
+	RoleName string `json:"role" validate:"required,oneof=admin user author"`
 }
 
-func (r *UpdateUserRoleRequest) Validate() error {
-	if r.RoleName == "" {
-		return errors.New("role name cannot be empty")
+func (r *UpdateUserRoleRequest) Validate(v *validator.Validate) error {
+	if err := v.Struct(r); err != nil {
+		return err
 	}
-	// if r.RoleName != "user" && r.RoleName != "admin" && r.RoleName != "author" {
-	// 	return errors.New("invalid role name: must be 'user', 'admin' or 'author'")
-	// }
 	return nil
 }
 
-func isValidEmail(email string) bool {
-	return len(email) > 3 && (contains(email, "@") && contains(email, "."))
+type PasswordResetRequest struct {
+	Email       string `json:"email" validate:"required,email"`
+	Token       string `json:"token" validate:"required"`
+	NewPassword string `json:"new_password" validate:"required,min=6"`
 }
 
-func contains(s, substr string) bool {
-	for i := 0; i+len(substr) <= len(s); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
+func (r *PasswordResetRequest) Validate(v *validator.Validate) error {
+	if err := v.Struct(r); err != nil {
+		return err
 	}
-	return false
+	return nil
 }

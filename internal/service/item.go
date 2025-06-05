@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -21,11 +22,17 @@ type PaginatedItems struct {
 }
 
 type ItemService struct {
-	ItemStore store.ItemStore
+	ItemStore     store.ItemStore
+	SearchStore   store.SearchStore
+	ItemIndexName string
 }
 
-func NewItemService(itemStore store.ItemStore) *ItemService {
-	return &ItemService{ItemStore: itemStore}
+func NewItemService(itemStore store.ItemStore, searchStore store.SearchStore) *ItemService {
+	return &ItemService{
+		ItemStore:     itemStore,
+		SearchStore:   searchStore,
+		ItemIndexName: "products_index",
+	}
 }
 
 func (s *ItemService) CreateItem(ctx context.Context, name, description string) (*model.Item, error) {
@@ -40,6 +47,12 @@ func (s *ItemService) CreateItem(ctx context.Context, name, description string) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create item: %w", err)
 	}
+
+	err = s.SearchStore.IndexDocument(ctx, s.ItemIndexName, fmt.Sprintf("%d", createdItem.ID), createdItem)
+	if err != nil {
+		fmt.Printf("Warning: Failed to index new item %d in Elasticsearch: %v\n", createdItem.ID, err)
+	}
+
 	return createdItem, nil
 }
 
@@ -71,6 +84,12 @@ func (s *ItemService) UpdateItem(ctx context.Context, id int32, name, descriptio
 	if err != nil {
 		return nil, fmt.Errorf("failed to update item: %w", err)
 	}
+
+	err = s.SearchStore.IndexDocument(ctx, s.ItemIndexName, fmt.Sprintf("%d", updatedItem.ID), updatedItem)
+	if err != nil {
+		fmt.Printf("Warning: Failed to re-index updated item %d in Elasticsearch: %v\n", updatedItem.ID, err)
+	}
+
 	return updatedItem, nil
 }
 
@@ -80,8 +99,14 @@ func (s *ItemService) DeleteItem(ctx context.Context, id int32) error {
 		if errors.Is(err, sql.ErrNoRows) {
 			return errors.New("item not found")
 		}
-		return fmt.Errorf("failed to delete item: %w", err)
+		return fmt.Errorf("failed to delete item from DB: %w", err)
 	}
+
+	err = s.SearchStore.DeleteDocument(ctx, s.ItemIndexName, fmt.Sprintf("%d", id))
+	if err != nil {
+		fmt.Printf("Warning: Failed to delete item %d from Elasticsearch: %v\n", id, err)
+	}
+
 	return nil
 }
 
@@ -103,6 +128,39 @@ func (s *ItemService) GetItems(ctx context.Context, page, pageSize int) (*Pagina
 	}
 	totalCount := int(totalCount64)
 
+	totalPages := int(math.Ceil(float64(totalCount) / float64(pageSize)))
+	if totalPages == 0 && totalCount > 0 {
+		totalPages = 1
+	}
+
+	return &PaginatedItems{
+		Items:      items,
+		TotalCount: totalCount,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func (s *ItemService) SearchItems(ctx context.Context, query string, page, pageSize int) (*PaginatedItems, error) {
+	searchFields := []string{"name", "description"}
+
+	rawHits, totalCount64, err := s.SearchStore.Search(ctx, s.ItemIndexName, query, searchFields, page, pageSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search items in Elasticsearch: %w", err)
+	}
+
+	var items []model.Item
+	for _, rawHit := range rawHits {
+		var item model.Item
+		if err := json.Unmarshal(rawHit, &item); err != nil {
+			fmt.Printf("Warning: Failed to unmarshal item from Elasticsearch hit: %v\n", err)
+			continue
+		}
+		items = append(items, item)
+	}
+
+	totalCount := int(totalCount64)
 	totalPages := int(math.Ceil(float64(totalCount) / float64(pageSize)))
 	if totalPages == 0 && totalCount > 0 {
 		totalPages = 1

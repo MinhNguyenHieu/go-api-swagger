@@ -19,6 +19,8 @@ type UserStore interface {
 	SoftDeleteUser(ctx context.Context, id int32) (sqlc.User, error)
 	RestoreUser(ctx context.Context, id int32) (sqlc.User, error)
 	VerifyUserEmail(ctx context.Context, id int32) (sqlc.User, error)
+	GetUserByEmail(ctx context.Context, email string) (sqlc.User, error)
+	UpdateUser(ctx context.Context, arg sqlc.UpdateUserParams) (sqlc.User, error)
 }
 
 type userStore struct {
@@ -42,9 +44,8 @@ func (s *userStore) Create(ctx context.Context, user *model.User) (*model.User, 
 	}
 	createdUser, err := s.queries.CreateUser(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create user in DB: %w", err)
+		return nil, fmt.Errorf("failed to create user via generic store: %w", err)
 	}
-	// Map sqlc.User back to model.User
 	return &model.User{
 		ID:                createdUser.ID,
 		Username:          createdUser.Username,
@@ -62,12 +63,8 @@ func (s *userStore) Create(ctx context.Context, user *model.User) (*model.User, 
 func (s *userStore) GetByID(ctx context.Context, id int32) (*model.User, error) {
 	dbUser, err := s.queries.GetUserByID(ctx, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, sql.ErrNoRows
-		}
-		return nil, fmt.Errorf("failed to get user by ID from DB: %w", err)
+		return nil, fmt.Errorf("failed to get user by ID via generic store: %w", err)
 	}
-	// Map sqlc.User back to model.User
 	return &model.User{
 		ID:                dbUser.ID,
 		Username:          dbUser.Username,
@@ -95,12 +92,8 @@ func (s *userStore) Update(ctx context.Context, user *model.User) (*model.User, 
 	}
 	updatedUser, err := s.queries.UpdateUser(ctx, params)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, sql.ErrNoRows
-		}
-		return nil, fmt.Errorf("failed to update user in DB: %w", err)
+		return nil, fmt.Errorf("failed to update user via generic store: %w", err)
 	}
-	// Map sqlc.User back to model.User
 	return &model.User{
 		ID:                updatedUser.ID,
 		Username:          updatedUser.Username,
@@ -116,14 +109,7 @@ func (s *userStore) Update(ctx context.Context, user *model.User) (*model.User, 
 }
 
 func (s *userStore) Delete(ctx context.Context, id int32) error {
-	err := s.queries.DeleteUser(ctx, id)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return sql.ErrNoRows
-		}
-		return fmt.Errorf("failed to delete user from DB: %w", err)
-	}
-	return nil
+	return s.queries.DeleteUser(ctx, id)
 }
 
 func (s *userStore) List(ctx context.Context, offset, limit int32) ([]*model.User, error) {
@@ -138,7 +124,6 @@ func (s *userStore) List(ctx context.Context, offset, limit int32) ([]*model.Use
 
 	var users []*model.User
 	for _, dbUser := range dbUsers {
-		// Map sqlc.User to model.User
 		users = append(users, &model.User{
 			ID:                dbUser.ID,
 			Username:          dbUser.Username,
@@ -215,6 +200,22 @@ func (s *userStore) VerifyUserEmail(ctx context.Context, id int32) (sqlc.User, e
 	user, err := s.queries.VerifyUserEmail(ctx, id)
 	if err != nil {
 		return sqlc.User{}, fmt.Errorf("failed to verify user email via store: %w", err)
+	}
+	return user, nil
+}
+
+func (s *userStore) GetUserByEmail(ctx context.Context, email string) (sqlc.User, error) {
+	user, err := s.queries.GetUserByEmail(ctx, email)
+	if err != nil {
+		return sqlc.User{}, fmt.Errorf("failed to get user by email via store: %w", err)
+	}
+	return user, nil
+}
+
+func (s *userStore) UpdateUser(ctx context.Context, arg sqlc.UpdateUserParams) (sqlc.User, error) {
+	user, err := s.queries.UpdateUser(ctx, arg)
+	if err != nil {
+		return sqlc.User{}, fmt.Errorf("failed to update user via store: %w", err)
 	}
 	return user, nil
 }

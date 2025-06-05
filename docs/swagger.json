@@ -21,14 +21,14 @@
     "host": "localhost:8080",
     "basePath": "/api/v1",
     "paths": {
-        "/admin/users/{id}/role": {
-            "put": {
+        "/admin/items": {
+            "post": {
                 "security": [
                     {
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Allows an administrator to change a user's role. Requires 'admin' role.",
+                "description": "Creates a new item with a name and description. Requires JWT authentication and 'admin' role.",
                 "consumes": [
                     "application/json"
                 ],
@@ -36,39 +36,29 @@
                     "application/json"
                 ],
                 "tags": [
-                    "admin"
+                    "items"
                 ],
-                "summary": "Update user role by ID",
+                "summary": "Create a new item",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "User ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "New role details",
+                        "description": "Item creation details",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/request.UpdateUserRoleRequest"
+                            "$ref": "#/definitions/request.CreateItemRequest"
                         }
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "message: User role updated successfully!",
+                    "201": {
+                        "description": "Created item",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/model.Item"
                         }
                     },
                     "400": {
-                        "description": "message: Invalid request data / Invalid User ID",
+                        "description": "message: Invalid request data",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -86,7 +76,257 @@
                         }
                     },
                     "403": {
-                        "description": "message: Forbidden (requires admin role)",
+                        "description": "message: You do not have permission to access this resource.",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "message: Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/items/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Updates an existing item's name and description. Requires JWT authentication and 'admin' role.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "items"
+                ],
+                "summary": "Update an existing item",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Item update details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.UpdateItemRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated item",
+                        "schema": {
+                            "$ref": "#/definitions/model.Item"
+                        }
+                    },
+                    "400": {
+                        "description": "message: Invalid request data / Invalid item ID format",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "message: Authentication token required / Invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "message: You do not have permission to access this resource.",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "message: Item not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "message: Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Deletes an item by its ID. Requires JWT authentication and 'admin' role.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "items"
+                ],
+                "summary": "Delete an item",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "message: Invalid item ID format",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "message: Authentication token required / Invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "message: You do not have permission to access this resource.",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "message: Item not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "message: Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/users/{id}/role": {
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Updates the role of a specific user. Requires JWT authentication and 'admin' role.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Update user role (Admin only)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New role for the user",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.UpdateUserRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated user details",
+                        "schema": {
+                            "$ref": "#/definitions/model.User"
+                        }
+                    },
+                    "400": {
+                        "description": "message: Invalid request data / Invalid User ID format",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "message: Authentication token required / Invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "message: You do not have permission to access this resource.",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -105,6 +345,101 @@
                     },
                     "500": {
                         "description": "message: Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/basic-auth/protected": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "This is a sample protected endpoint accessible only with Basic Authentication.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "example"
+                ],
+                "summary": "Protected with Basic Auth Endpoint",
+                "responses": {
+                    "200": {
+                        "description": "message: Basic Auth access granted!",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "message: Basic authentication failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/forgot-password": {
+            "post": {
+                "description": "Sends a password reset email to the user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "authentication"
+                ],
+                "summary": "Request password reset",
+                "parameters": [
+                    {
+                        "description": "email: User's email address",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: Password reset email sent.",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "message: Invalid email format / Email not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "message: Failed to send password reset email.",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -182,14 +517,16 @@
                         }
                     }
                 }
-            },
-            "post": {
+            }
+        },
+        "/items/search": {
+            "get": {
                 "security": [
                     {
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Creates a new item with a name and description. Requires JWT authentication.",
+                "description": "Searches for items across multiple fields using Elasticsearch. Requires JWT authentication.",
                 "consumes": [
                     "application/json"
                 ],
@@ -199,27 +536,37 @@
                 "tags": [
                     "items"
                 ],
-                "summary": "Create a new item",
+                "summary": "Search items",
                 "parameters": [
                     {
-                        "description": "Item creation details",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/request.CreateItemRequest"
-                        }
+                        "type": "string",
+                        "description": "Search query string",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items per page (default 10)",
+                        "name": "pageSize",
+                        "in": "query"
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created item",
+                    "200": {
+                        "description": "Paginated list of search results",
                         "schema": {
-                            "$ref": "#/definitions/model.Item"
+                            "$ref": "#/definitions/service.PaginatedItems"
                         }
                     },
                     "400": {
-                        "description": "message: Invalid request data",
+                        "description": "message: Invalid parameters",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -265,7 +612,7 @@
                 "tags": [
                     "items"
                 ],
-                "summary": "Get an item by ID",
+                "summary": "Get item by ID",
                 "parameters": [
                     {
                         "type": "integer",
@@ -277,161 +624,13 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Found item",
+                        "description": "Item details",
                         "schema": {
                             "$ref": "#/definitions/model.Item"
                         }
                     },
                     "400": {
-                        "description": "message: Invalid item ID",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "message: Authentication token required / Invalid token",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "message: Item not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "message: Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "Updates an existing item's name and description by its ID. Requires JWT authentication.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "items"
-                ],
-                "summary": "Update an item",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Item ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Item update details",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/request.UpdateItemRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Updated item",
-                        "schema": {
-                            "$ref": "#/definitions/model.Item"
-                        }
-                    },
-                    "400": {
-                        "description": "message: Invalid request data / Invalid item ID",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "message: Authentication token required / Invalid token",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "message: Item not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "message: Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "Deletes an item by its ID. Requires JWT authentication.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "items"
-                ],
-                "summary": "Delete an item",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Item ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "message: Invalid item ID",
+                        "description": "message: Invalid item ID format",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -471,7 +670,7 @@
         },
         "/login": {
             "post": {
-                "description": "Authenticates user with username and password, then returns a JWT token and user role.",
+                "description": "Logs in a user and returns a JWT token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -481,7 +680,7 @@
                 "tags": [
                     "authentication"
                 ],
-                "summary": "Log in user and get JWT token",
+                "summary": "Login user",
                 "parameters": [
                     {
                         "description": "User login credentials",
@@ -495,7 +694,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "token: JWT token, role: User's role",
+                        "description": "Successful login",
                         "schema": {
                             "$ref": "#/definitions/handler.LoginResponse"
                         }
@@ -510,7 +709,7 @@
                         }
                     },
                     "401": {
-                        "description": "message: Incorrect username or password",
+                        "description": "message: Invalid username or password",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -537,20 +736,17 @@
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "This endpoint requires JWT authentication.",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "This is a sample protected endpoint accessible only with a valid JWT.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "protected"
+                    "example"
                 ],
-                "summary": "Access protected endpoint",
+                "summary": "Protected Endpoint",
                 "responses": {
                     "200": {
-                        "description": "message: You have successfully accessed the protected endpoint!",
+                        "description": "message: Access granted!",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -624,6 +820,124 @@
                     }
                 }
             }
+        },
+        "/reset-password": {
+            "post": {
+                "description": "Resets user's password using a valid token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "authentication"
+                ],
+                "summary": "Reset password",
+                "parameters": [
+                    {
+                        "description": "email: User's email, token: Reset token, new_password: New password",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: Password reset successfully!",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "message: Invalid request data / Invalid or expired token / Passwords do not match criteria",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "message: Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/verify-email": {
+            "get": {
+                "description": "Verifies a user's email address using a provided token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "authentication"
+                ],
+                "summary": "Verify user email",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Verification token",
+                        "name": "token",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: Email verified successfully!",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "message: Invalid verification link or token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "message: Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -658,19 +972,83 @@
                 }
             }
         },
-        "request.CreateItemRequest": {
+        "model.NullString": {
             "type": "object",
             "properties": {
-                "description": {
+                "string": {
                     "type": "string"
                 },
-                "name": {
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "model.NullTime": {
+            "type": "object",
+            "properties": {
+                "time": {
                     "type": "string"
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "model.User": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "deletedAt": {
+                    "$ref": "#/definitions/model.NullTime"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "emailVerifiedAt": {
+                    "$ref": "#/definitions/model.NullTime"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "rememberTokenUuid": {
+                    "$ref": "#/definitions/model.NullString"
+                },
+                "roleId": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.CreateItemRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 3
                 }
             }
         },
         "request.LoginUserRequest": {
             "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
             "properties": {
                 "password": {
                     "type": "string"
@@ -682,34 +1060,57 @@
         },
         "request.RegisterUserRequest": {
             "type": "object",
+            "required": [
+                "email",
+                "password",
+                "username"
+            ],
             "properties": {
                 "email": {
                     "type": "string"
                 },
                 "password": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 6
                 },
                 "username": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 3
                 }
             }
         },
         "request.UpdateItemRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "description": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 1000
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 3
                 }
             }
         },
         "request.UpdateUserRoleRequest": {
             "type": "object",
+            "required": [
+                "role"
+            ],
             "properties": {
                 "role": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "admin",
+                        "user",
+                        "author"
+                    ]
                 }
             }
         },

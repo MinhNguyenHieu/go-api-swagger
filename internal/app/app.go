@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 
 	"external-backend-go/configs"
 	"external-backend-go/db/sqlc"
 	"external-backend-go/internal/database"
+	"external-backend-go/internal/elasticsearch"
 	"external-backend-go/internal/email"
 	"external-backend-go/internal/handler"
 	"external-backend-go/internal/logger"
@@ -30,13 +32,17 @@ type App struct {
 	RoleStore               store.RoleStore
 	PasswordResetTokenStore store.PasswordResetTokenStore
 	SessionStore            store.SessionStore
-	AuthService             *service.AuthService
-	ItemService             *service.ItemService
-	AuthHandler             *handler.AuthHandler
-	ItemHandler             *handler.ItemHandler
-	EmailSender             email.EmailSender
-	RateLimiter             *middleware.RateLimiter
-	Logger                  *logger.Logger
+	SearchStore             store.SearchStore
+	ElasticsearchClient     *elasticsearch.Client
+
+	AuthService *service.AuthService
+	ItemService *service.ItemService
+	AuthHandler *handler.AuthHandler
+	ItemHandler *handler.ItemHandler
+	EmailSender email.EmailSender
+	RateLimiter *middleware.RateLimiter
+	Logger      *logger.Logger
+	Validator   *validator.Validate
 }
 
 func NewApp(cfg *configs.Config) *App {
@@ -49,7 +55,6 @@ func NewApp(cfg *configs.Config) *App {
 
 func (a *App) Initialize() {
 	var err error
-	// Retry loop for database connection
 	maxRetries := 10
 	for i := 0; i < maxRetries; i++ {
 		a.DB, err = database.ConnectDB(a.Config.DatabaseURL)
@@ -75,7 +80,6 @@ func (a *App) Initialize() {
 
 	a.Queries = sqlc.New(a.DB)
 
-	// Initialize BaseRepository for common DB operations
 	baseRepo := store.NewBaseRepository(a.DB, a.Logger)
 
 	// Initialize all stores
@@ -85,6 +89,14 @@ func (a *App) Initialize() {
 	a.PasswordResetTokenStore = store.NewPasswordResetTokenStore(a.DB, a.Queries, baseRepo)
 	a.SessionStore = store.NewSessionStore(a.DB, a.Queries, baseRepo)
 
+	a.ElasticsearchClient, err = elasticsearch.NewElasticsearchClient("http://elasticsearch:9200")
+	if err != nil {
+		a.Logger.Fatal("Failed to connect to Elasticsearch: %v", err)
+	}
+	a.Logger.Info("Successfully connected to Elasticsearch!")
+
+	a.SearchStore = store.NewSearchStore(a.ElasticsearchClient, a.Logger)
+
 	a.EmailSender = email.NewSMTPEmailSender(
 		a.Config.SMTP.Host,
 		a.Config.SMTP.Port,
@@ -93,13 +105,15 @@ func (a *App) Initialize() {
 		a.Config.SMTP.SenderEmail,
 	)
 
-	// Initialize services
-	a.AuthService = service.NewAuthService(a.UserStore, a.RoleStore, a.SessionStore, a.Config.JWTSecret, a.EmailSender)
-	a.ItemService = service.NewItemService(a.ItemStore)
+	a.Validator = validator.New()
 
-	// Initialize handlers, passing logger
-	a.ItemHandler = handler.NewItemHandler(a.ItemService, a.Logger)
-	a.AuthHandler = handler.NewAuthHandler(a.AuthService, a.Logger)
+	// Initialize services
+	a.AuthService = service.NewAuthService(a.UserStore, a.RoleStore, a.SessionStore, a.PasswordResetTokenStore, a.Config.JWTSecret, a.EmailSender)
+	a.ItemService = service.NewItemService(a.ItemStore, a.SearchStore)
+
+	// Initialize handlers, passing logger and validator
+	a.ItemHandler = handler.NewItemHandler(a.ItemService, a.Logger, a.Validator)
+	a.AuthHandler = handler.NewAuthHandler(a.AuthService, a.Logger, a.Validator)
 
 	// Initialize Rate Limiter
 	a.RateLimiter = middleware.NewRateLimiter(
@@ -110,21 +124,22 @@ func (a *App) Initialize() {
 	)
 	a.Logger.Info("Rate Limiter initialized. Enabled: %t, RPS: %.2f, Burst: %d", a.Config.RateLimiter.Enabled, a.Config.RateLimiter.RPS, a.Config.RateLimiter.Burst)
 
-	// Setup routes, passing logger and rate limiter
-	routes.SetupAPIRoutes(
-		a.Router,
-		a.AuthHandler,
-		a.ItemHandler,
-		a.Config.JWTSecret,
-		a.UserStore,
-		a.RateLimiter,
-		a.Config.Auth.Basic.User,
-		a.Config.Auth.Basic.Pass,
-		a.Logger,
-		a.RoleStore,
-	)
+	routes.SetupAPIRoutes(routes.AppDependencies{
+		Router:        a.Router,
+		AuthHandler:   a.AuthHandler,
+		ItemHandler:   a.ItemHandler,
+		JWTSecret:     a.Config.JWTSecret,
+		UserStore:     a.UserStore,
+		RoleStore:     a.RoleStore,
+		RateLimiter:   a.RateLimiter,
+		BasicAuthUser: a.Config.Auth.Basic.User,
+		BasicAuthPass: a.Config.Auth.Basic.Pass,
+		AppLogger:     a.Logger,
+		SearchStore:   a.SearchStore,
+		// Validator:     a.Validator,
+	})
 
-	a.Logger.Info("Application initialized successfully.")
+	a.Logger.Info("Application initialization complete.")
 }
 
 func (a *App) Run() {

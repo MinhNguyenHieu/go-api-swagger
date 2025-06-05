@@ -18,23 +18,33 @@ import (
 	"external-backend-go/internal/store"
 )
 
-// Define sentinel errors for specific conditions
 var (
-	ErrUserNotFound      = errors.New("user not found")
-	ErrInvalidRoleName   = errors.New("invalid role name specified")
-	ErrIncorrectPassword = errors.New("incorrect username or password")
+	ErrUserNotFound         = errors.New("user not found")
+	ErrInvalidRoleName      = errors.New("invalid role name specified")
+	ErrIncorrectPassword    = errors.New("incorrect username or password")
+	ErrInvalidToken         = errors.New("invalid or expired token")
+	ErrEmailAlreadyVerified = errors.New("email already verified")
+	ErrUserAlreadyExists    = errors.New("user with this username or email already exists")
 )
 
 type AuthService struct {
-	UserStore    store.UserStore
-	RoleStore    store.RoleStore
-	SessionStore store.SessionStore
-	JWTSecret    string
-	EmailSender  email.EmailSender
+	UserStore               store.UserStore
+	RoleStore               store.RoleStore
+	SessionStore            store.SessionStore
+	PasswordResetTokenStore store.PasswordResetTokenStore
+	JWTSecret               string
+	EmailSender             email.EmailSender
 }
 
-func NewAuthService(userStore store.UserStore, roleStore store.RoleStore, sessionStore store.SessionStore, jwtSecret string, emailSender email.EmailSender) *AuthService {
-	return &AuthService{UserStore: userStore, RoleStore: roleStore, SessionStore: sessionStore, JWTSecret: jwtSecret, EmailSender: emailSender}
+func NewAuthService(userStore store.UserStore, roleStore store.RoleStore, sessionStore store.SessionStore, passwordResetTokenStore store.PasswordResetTokenStore, jwtSecret string, emailSender email.EmailSender) *AuthService {
+	return &AuthService{
+		UserStore:               userStore,
+		RoleStore:               roleStore,
+		SessionStore:            sessionStore,
+		PasswordResetTokenStore: passwordResetTokenStore,
+		JWTSecret:               jwtSecret,
+		EmailSender:             emailSender,
+	}
 }
 
 func (s *AuthService) RegisterUser(ctx context.Context, username, password, email, roleName string) error {
@@ -46,35 +56,22 @@ func (s *AuthService) RegisterUser(ctx context.Context, username, password, emai
 	role, err := s.RoleStore.GetRoleByName(ctx, roleName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ErrInvalidRoleName
+			return ErrInvalidRoleName // Role not found
 		}
-		return fmt.Errorf("failed to get role: %w", err)
+		return fmt.Errorf("failed to get role by name: %w", err)
 	}
 
-	params := sqlc.CreateUserParams{
+	arg := sqlc.CreateUserParams{
 		Username:       username,
 		HashedPassword: string(hashedPassword),
 		Email:          email,
 		RoleID:         role.ID,
 	}
 
-	_, err = s.UserStore.CreateUser(ctx, params)
+	_, err = s.UserStore.CreateUser(ctx, arg)
 	if err != nil {
-		return fmt.Errorf("failed to register user: %w", err)
+		return fmt.Errorf("failed to create user: %w", err)
 	}
-
-	go func() {
-		if s.EmailSender != nil {
-			welcomeSubject := "Welcome to our application!"
-			welcomeBody := fmt.Sprintf("Hello %s,<br><br>Thank you for registering an account with us. Your role is: %s. We are excited to welcome you!<br><br>Regards,<br>Your Application Team", username, role.Name)
-			if err := s.EmailSender.SendEmail(email, welcomeSubject, welcomeBody); err != nil {
-				fmt.Printf("Error sending welcome email to %s: %v\n", email, err)
-			}
-		} else {
-			fmt.Println("EmailSender not initialized, cannot send welcome email.")
-		}
-	}()
-
 	return nil
 }
 
@@ -82,9 +79,9 @@ func (s *AuthService) LoginUser(ctx context.Context, username, password, ipAddre
 	dbUser, err := s.UserStore.GetUserByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", "", ErrIncorrectPassword
+			return "", "", ErrUserNotFound
 		}
-		return "", "", fmt.Errorf("failed to retrieve user from DB: %w", err)
+		return "", "", fmt.Errorf("failed to get user by username: %w", err)
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(dbUser.HashedPassword), []byte(password))
@@ -97,20 +94,14 @@ func (s *AuthService) LoginUser(ctx context.Context, username, password, ipAddre
 		return "", "", fmt.Errorf("failed to get user role: %w", err)
 	}
 
-	sessionID := uuid.New().String()
-
-	sessionPayload, err := json.Marshal(map[string]interface{}{
-		"user_id":    dbUser.ID,
-		"username":   dbUser.Username,
-		"role":       role.Name,
-		"login_time": time.Now().Unix(),
-	})
+	// Create session
+	sessionPayload, err := json.Marshal(map[string]string{"username": dbUser.Username, "role": role.Name})
 	if err != nil {
 		return "", "", fmt.Errorf("failed to marshal session payload: %w", err)
 	}
 
 	session := &model.Session{
-		ID:           sessionID,
+		ID:           uuid.New().String(),
 		UserID:       sql.NullInt32{Int32: dbUser.ID, Valid: true},
 		IpAddress:    model.NullString{String: ipAddress, Valid: ipAddress != ""},
 		UserAgent:    model.NullString{String: userAgent, Valid: userAgent != ""},
@@ -131,8 +122,128 @@ func (s *AuthService) LoginUser(ctx context.Context, username, password, ipAddre
 	return tokenString, role.Name, nil
 }
 
+// VerifyEmail verifies the user's email address.
+func (s *AuthService) VerifyEmail(ctx context.Context, userID int32, token string) error {
+	user, err := s.UserStore.GetUserByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return fmt.Errorf("failed to get user for email verification: %w", err)
+	}
+
+	if user.EmailVerifiedAt.Valid {
+		return ErrEmailAlreadyVerified
+	}
+
+	if token == "" {
+		return ErrInvalidToken
+	}
+
+	_, err = s.UserStore.VerifyUserEmail(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to verify user email in store: %w", err)
+	}
+
+	return nil
+}
+
+func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
+	_, err := s.UserStore.GetUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return fmt.Errorf("failed to get user by email for password reset: %w", err)
+	}
+
+	token := uuid.New().String()
+	expiryTime := time.Now().Add(15 * time.Minute)
+
+	existingToken, err := s.PasswordResetTokenStore.GetPasswordResetToken(ctx, email)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to check existing password reset token: %w", err)
+	}
+
+	if existingToken != nil {
+		err = s.PasswordResetTokenStore.DeletePasswordResetToken(ctx, email)
+		if err != nil {
+			return fmt.Errorf("failed to delete old password reset token: %w", err)
+		}
+	}
+	_, err = s.PasswordResetTokenStore.CreatePasswordResetToken(ctx, email, token, expiryTime)
+	if err != nil {
+		return fmt.Errorf("failed to create password reset token: %w", err)
+	}
+
+	// Construct email body with reset link
+	resetLink := fmt.Sprintf("http://localhost:8080/reset-password?email=%s&token=%s", email, token)
+	body := fmt.Sprintf(`
+		<p>Hello,</p>
+		<p>You have requested to reset your password. Please click the link below to reset it:</p>
+		<p><a href="%s">%s</a></p>
+		<p>This link will expire in 15 minutes.</p>
+		<p>If you did not request a password reset, please ignore this email.</p>
+	`, resetLink, resetLink)
+
+	// Send email
+	err = s.EmailSender.SendEmail(email, "Password Reset Request", body)
+	if err != nil {
+		return fmt.Errorf("failed to send password reset email: %w", err)
+	}
+
+	return nil
+}
+
+func (s *AuthService) ResetPassword(ctx context.Context, email, token, newPassword string) error {
+	resetToken, err := s.PasswordResetTokenStore.GetPasswordResetToken(ctx, email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrInvalidToken
+		}
+		return fmt.Errorf("failed to get password reset token: %w", err)
+	}
+
+	if resetToken.Token != token || !resetToken.CreatedAt.Valid || time.Now().After(resetToken.CreatedAt.Time.Add(15*time.Minute)) {
+		return ErrInvalidToken
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash new password: %w", err)
+	}
+
+	user, err := s.UserStore.GetUserByEmail(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to get user by email for password reset: %w", err)
+	}
+
+	arg := sqlc.UpdateUserParams{
+		ID:                user.ID,
+		Username:          user.Username,
+		HashedPassword:    string(hashedPassword),
+		Email:             user.Email,
+		EmailVerifiedAt:   user.EmailVerifiedAt,
+		RoleID:            user.RoleID,
+		RememberTokenUuid: user.RememberTokenUuid,
+		DeletedAt:         user.DeletedAt,
+	}
+
+	_, err = s.UserStore.UpdateUser(ctx, arg)
+	if err != nil {
+		return fmt.Errorf("failed to update user password: %w", err)
+	}
+
+	err = s.PasswordResetTokenStore.DeletePasswordResetToken(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to delete password reset token: %w", err)
+	}
+
+	return nil
+}
+
 func (s *AuthService) UpdateUserRole(ctx context.Context, userID int32, newRoleName string) (sqlc.User, error) {
-	existingUser, err := s.UserStore.GetUserByID(ctx, userID)
+	_, err := s.UserStore.GetUserByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return sqlc.User{}, ErrUserNotFound
@@ -145,22 +256,15 @@ func (s *AuthService) UpdateUserRole(ctx context.Context, userID int32, newRoleN
 		if errors.Is(err, sql.ErrNoRows) {
 			return sqlc.User{}, ErrInvalidRoleName
 		}
-		return sqlc.User{}, fmt.Errorf("failed to get new role: %w", err)
+		return sqlc.User{}, fmt.Errorf("failed to get new role by name: %w", err)
 	}
 
-	if existingUser.RoleID == newRole.ID {
-		return existingUser, nil
-	}
-
-	params := sqlc.UpdateUserRoleParams{
+	updatedUser, err := s.UserStore.UpdateUserRole(ctx, sqlc.UpdateUserRoleParams{
 		ID:     userID,
 		RoleID: newRole.ID,
-	}
-
-	updatedUser, err := s.UserStore.UpdateUserRole(ctx, params)
+	})
 	if err != nil {
 		return sqlc.User{}, fmt.Errorf("failed to update user role: %w", err)
 	}
-
 	return updatedUser, nil
 }

@@ -287,6 +287,29 @@ func (q *Queries) GetSessionByID(ctx context.Context, id string) (Session, error
 	return i, err
 }
 
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, username, hashed_password, email, email_verified_at, role_id, remember_token_uuid, created_at, updated_at, deleted_at FROM users
+WHERE email = $1 LIMIT 1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.HashedPassword,
+		&i.Email,
+		&i.EmailVerifiedAt,
+		&i.RoleID,
+		&i.RememberTokenUuid,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const getUserByID = `-- name: GetUserByID :one
 SELECT id, username, hashed_password, email, email_verified_at, role_id, remember_token_uuid, created_at, updated_at, deleted_at FROM users
 WHERE id = $1 LIMIT 1
